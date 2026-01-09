@@ -5,165 +5,134 @@
 #include <vector>
 #include <span>
 #include <algorithm>
+#include <array> // Added missing header for std::array
 
 namespace numPDE
 {
-     template <typename T>
-    struct Vector : Expr<Vector<T>>
+    template <typename T>
+    struct Vector : public std::vector<T>, public Expr<Vector<T>>
     {
       public:
         using value_type = T;
-        Vector()         = default;
-        Vector(std::initializer_list<T> l)
-        {
-            m_Datas.resize(l.size());
-            std::copy_n(l.begin(), l.size(), m_Datas.begin());
-        }
-        Vector(size_t s, T val) : m_Datas(s, val) {}
+        
+        // --- 1. RESOLVE AMBIGUITY ---
+        // Explicitly use std::vector's implementation for these methods
+        using std::vector<T>::operator[];
+        using std::vector<T>::size;
+        using std::vector<T>::begin;
+        using std::vector<T>::end;
+        using std::vector<T>::resize; // Needed if accessed via Vector
+        using std::vector<T>::vector;
+        
+
+        Vector() = default;
 
         template <typename E>
         Vector(const Expr<E>& expr)
         {
             const E& ex = static_cast<const E&>(expr);
-            m_Datas.resize(ex.size());
+            this->resize(ex.size()); // Use this-> or local using declaration
 
             for (size_t i = 0; i < ex.size(); ++i)
-                m_Datas[i] = ex[i];
+                (*this)[i] = ex[i];
         }
-        // -----------------------------//
-        // ***** ACCESS OPERATORS ***** //
-        // -----------------------------//
-        const T& operator[](size_t i) const { return m_Datas[i]; }
-        T&       operator[](size_t i) { return m_Datas[i]; }
 
-        // -----------------------------//
-        // ***** CONSTR FROM EXPR ***** //
-        // -----------------------------//
         template <typename E>
-        auto operator()(const Expr<E>& expr)
+        void operator()(const Expr<E>& expr)
         {
             const E& ex = static_cast<const E&>(expr);
-            m_Datas.resize(ex.size());
+            this->resize(ex.size());
             for (size_t i = 0; i < ex.size(); ++i)
-                m_Datas[i] = ex[i];
+                (*this)[i] = ex[i];
         }
+
         template <typename E>
-        auto operator=(const Expr<E>& expr)
+        Vector& operator=(const Expr<E>& expr)
         {
             const E& ex = static_cast<const E&>(expr);
-
-            m_Datas.resize(ex.size());
+            this->resize(ex.size());
             for (size_t i = 0; i < ex.size(); ++i)
-                m_Datas[i] = ex[i];
+                (*this)[i] = ex[i];
             return (*this);
         }
-        // -----------------------------//
-        // ***** CONSTR FROM SPAN ***** // aka from VectorField
-        // -----------------------------//
-        auto operator=(std::span<T> span)
+
+        // Assignment from span
+        Vector& operator=(std::span<T> span)
         {
-            auto span_clean = static_cast<std::span<T>>(span);
-            std::copy_n(span_clean.begin(), span_clean.size(), m_Datas.begin());
-            return *this;
-        }
-        auto operator=(std::span<const T> span)
-        {
-            auto span_clean = static_cast<std::span<const T>>(span);
-            std::copy_n(span_clean.begin(), span_clean.size(), m_Datas.begin());
+            this->resize(span.size());
+            std::copy(span.begin(), span.end(), this->begin());
             return *this;
         }
 
-        // auto operator
-        // std::copy_n(span.begin(), N_dim, test.begin());
-
-        // -----------------------------//
-        // *****STL-LIKE UTILITIES***** //
-        // -----------------------------//
-        size_t constexpr size() const { return m_Datas.size(); }
-        decltype(auto) begin() { return m_Datas.begin(); }
-        decltype(auto) end() { return m_Datas.end(); }
-        decltype(auto) begin() const { return m_Datas.begin(); }
-        decltype(auto) end() const { return m_Datas.end(); }
-
-      private:
-        std::vector<T> m_Datas{};
+        Vector& operator=(std::span<const T> span)
+        {
+            this->resize(span.size());
+            std::copy(span.begin(), span.end(), this->begin());
+            return *this;
+        }
     };
 
-     template <typename T, size_t N = DEF_DIM>
-    struct Array : Expr<Array<T, N>>
+    template <typename T, size_t N = DEF_DIM>
+    struct Array : public std::array<T, N>, public Expr<Array<T, N>>
     {
       public:
         using value_type = T;
-        Array()          = default;
-        Array(const T v) { std::fill_n(m_Datas.begin(), N, v); }
+
+        // --- RESOLVE AMBIGUITY FOR ARRAY ---
+        using std::array<T, N>::operator[];
+        using std::array<T, N>::size;
+        using std::array<T, N>::begin;
+        using std::array<T, N>::end;
+        using std::array<T, N>::array;
+
+        Array() = default;
+        
+        // Initialize std::array with fill logic if needed, or loop
+        Array(const T v) 
+        { 
+            std::fill(this->begin(), this->end(), v); 
+        }
+
         Array(std::initializer_list<T> l)
         {
-            assert(l.size() <= N && "Value bigger than the size of the  element");
-            std::copy_n(l.begin(), l.size(), m_Datas.begin());
+            assert(l.size() <= N && "Value bigger than the size of the element");
+            std::copy(l.begin(), l.end(), this->begin());
         }
 
-        // -----------------------------//
-        // ***** ACCESS OPERATORS ***** //
-        // -----------------------------//
-        const T& operator[](size_t i) const { return m_Datas[i]; }
-        T&       operator[](size_t i) { return m_Datas[i]; }
-
-        // -----------------------------//
-        // ***** CONSTR FROM EXPR ***** //
-        // -----------------------------//
         template <typename E>
-        auto operator()(const Expr<E>& expr)
+        void operator()(const Expr<E>& expr)
         {
             const E& ex = static_cast<const E&>(expr);
 #ifdef PEDANTIC
             assert("Size mismatch" && ex.size() == N);
 #endif
             for (size_t i = 0; i < ex.size(); ++i)
-                m_Datas[i] = ex[i];
+                (*this)[i] = ex[i];
         }
+
         template <typename E>
-        auto operator=(const Expr<E>& expr)
+        Array& operator=(const Expr<E>& expr)
         {
             const E& ex = static_cast<const E&>(expr);
-
 #ifdef PEDANTIC
             assert("Size mismatch" && ex.size() == N);
 #endif
             for (size_t i = 0; i < ex.size(); ++i)
-                m_Datas[i] = ex[i];
+                (*this)[i] = ex[i];
             return (*this);
         }
-        // -----------------------------//
-        // ***** CONSTR FROM SPAN ***** // aka from VectorField
-        // -----------------------------//
-        auto operator=(std::span<T> span)
+
+        Array& operator=(std::span<T> span)
         {
-            auto span_clean = static_cast<std::span<T>>(span);
-            std::copy_n(span_clean.begin(), N, m_Datas.begin());
-            return *this;
-        }
-        auto operator=(std::span<const T> span)
-        {
-            auto span_clean = static_cast<std::span<const T>>(span);
-            std::copy_n(span_clean.begin(), N, m_Datas.begin());
+            // std::array cannot resize, so we assume span fits or copy N
+            std::copy_n(span.begin(), N, this->begin());
             return *this;
         }
 
-        // auto operator
-        // std::copy_n(span.begin(), N_dim, test.begin());
-
-        // -----------------------------//
-        // *****STL-LIKE UTILITIES***** //
-        // -----------------------------//
-        size_t constexpr size() const { return N; }
-        decltype(auto) begin() { return m_Datas.begin(); }
-        decltype(auto) end() { return m_Datas.end(); }
-        decltype(auto) begin() const { return m_Datas.begin(); }
-        decltype(auto) end() const { return m_Datas.end(); }
-
-      private:
-        std::array<T, N> m_Datas{};
+        Array& operator=(std::span<const T> span)
+        {
+            std::copy_n(span.begin(), N, this->begin());
+            return *this;
+        }
     };
-
 } // namespace numPDE
-

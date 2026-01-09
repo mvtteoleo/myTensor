@@ -1,6 +1,6 @@
 // Compile with
 //  g++ t1.cpp -std=c++23 -O3
-#include "include/datastructs.hpp"
+#include "include/tensors.hpp"
 #include <cassert>
 #include <iostream>
 
